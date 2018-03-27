@@ -30,7 +30,7 @@ type SDInfo struct {
 	Status bool
 }
 
-func (sd *SDInfo) msg() string {
+func (sd SDInfo) msg() string {
 	msgstr := fmt.Sprintf("%s,%s,%s", sd.Url, sd.Info.Version, sd.Info.Fingerprint)
 	return msgstr
 }
@@ -41,20 +41,22 @@ func check(e error) {
 	}
 }
 
-func checkStatus(c *http.Client, url string) SDInfo {
+func checkStatus(ch chan Information, client *http.Client, url string) {
 	var result SDInfo
 	result.Url = url
 	// Create the request
 	req, err := http.NewRequest("GET", URL, nil)
 	if err != nil {
 		result.Status = false
-		return result
+		ch <- result
+		return
 	}
 
-	resp, err := c.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		result.Status = false
-		return result
+		ch <- result
+		return
 	}
 
 	defer resp.Body.Close()
@@ -62,14 +64,15 @@ func checkStatus(c *http.Client, url string) SDInfo {
 
 	if err != nil {
 		result.Status = false
-		return result
+		ch <- result
+		return
 	}
 
 	var info SDJson
 	json.Unmarshal(body, &info)
 
 	result.Info = info
-	return result
+	ch <- result
 }
 
 func main() {
@@ -84,6 +87,17 @@ func main() {
 	c := &http.Client{Transport: httpTransport}
 	// Add the dialer
 	httpTransport.Dial = dialer.Dial
-	result := checkStatus(c, URL)
-	fmt.Println(result.msg())
+
+	ch := make(chan Information)
+
+	go checkStatus(ch, c, URL)
+
+	for {
+		result := <-ch
+		if result != nil {
+			fmt.Println(result.msg())
+			break
+		}
+	}
+
 }
