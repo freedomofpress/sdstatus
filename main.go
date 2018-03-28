@@ -29,9 +29,9 @@ type SDMetadata struct {
 
 // SDInfo stores metadata and Onion URL
 type SDInfo struct {
-	Info   SDMetadata
-	Url    string
-	Status bool
+	Info      SDMetadata
+	Url       string
+	Available bool
 }
 
 func (sd SDInfo) msg() string {
@@ -53,14 +53,14 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 	// Create the request
 	req, err := http.NewRequest("GET", metadataURL, nil)
 	if err != nil {
-		result.Status = false
+		result.Available = false
 		ch <- result
 		return
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Status = false
+		result.Available = false
 		ch <- result
 		return
 	}
@@ -69,7 +69,7 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		result.Status = false
+		result.Available = false
 		ch <- result
 		return
 	}
@@ -78,11 +78,14 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 	json.Unmarshal(body, &info)
 
 	result.Info = info
+	result.Available = true
 	ch <- result
 }
 
 func main() {
 	i := 0
+
+	results := make([]SDInfo, 0)
 	// create a SOCKS5 dialer
 	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
 	if err != nil {
@@ -115,12 +118,19 @@ func main() {
 	for {
 		result := <-ch
 		if result != nil {
-			fmt.Println(result.msg())
+
+			//fmt.Println(result.msg())
+			results = append(results, result.(SDInfo))
 			i = i - 1
 		}
 		if i == 0 {
 			break
 		}
+	}
+
+	bits, err := json.MarshalIndent(results, "", "\t")
+	if err == nil {
+		fmt.Println(string(bits))
 	}
 
 }

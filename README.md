@@ -24,12 +24,27 @@ for you.
 ## Output format
 
 ```
-xyz.onion,0.6,kdsjfkjaskfjaskdfjkasdjfkasjkasdfjklasj
+[
+	{
+		"Info": {
+			"sd_version": "0.6",
+			"gpg_fpr": "3392A1CE68FE779A95FCAF04EDA0FB6F53FA9093"
+		},
+		"Url": "m4hynbhhctdk27jr.onion",
+		"Available": true
+	},
+	{
+		"Info": {
+			"sd_version": "0.6",
+			"gpg_fpr": "7C24A77EED0D50838E3315BD7A38590B2996F0C2"
+		},
+		"Url": "ftugftwajmgsmoau.onion",
+		"Available": true
+	}
+]
 ```
 
-Currently the tool prints comma separated values on the STDOUT. First the Onion address, then SecureDrop version,
-and then the journalist GPG key fingerprint. If only the Onion address is printed along with `,,`, it means those
-instances could not be reached (maybe they down).
-
+Currently the tool prints JSON output on the STDOUT. It is a list of dictionaries telling if the site is available, and
+the SecureDrop version and also the journalist GPG key fingerprint.
 
 License: GPLv3+
