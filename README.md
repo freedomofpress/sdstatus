@@ -14,6 +14,12 @@ The tool assumes that Tor is running with a SOCKS proxy at port 9050 in the syst
 The dependencies are managed using [dep](https://golang.github.io/dep/) tool.
 
 
+## How to build?
+
+Checkout the git repo in your `$GOPATH`, and then simple `go build` will do the work
+for you.
+
+
 
 Currently the tool prints comma separated values in the STDOUT.
 
