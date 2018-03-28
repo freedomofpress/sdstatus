@@ -21,7 +21,15 @@ for you.
 
 
 
-Currently the tool prints comma separated values in the STDOUT.
+## Output format
+
+```
+xyz.onion,0.6,kdsjfkjaskfjaskdfjkasdjfkasjkasdfjklasj
+```
+
+Currently the tool prints comma separated values on the STDOUT. First the Onion address, then SecureDrop version,
+and then the journalist GPG key fingerprint. If only the Onion address is printed along with `,,`, it means those
+instances could not be reached (maybe they down).
 
 
 License: GPLv3+
