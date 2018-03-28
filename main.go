@@ -6,26 +6,30 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	"golang.org/x/net/proxy"
 )
 
 const (
-	PROXY_ADDR = "127.0.0.1:9050"
-	URL        = "http://p6qn2dviaa53hre5.onion/metadata"
+	// proxyAddr points to local SOCKS proxy from Tor
+	proxyAddr = "127.0.0.1:9050"
 )
 
+// Information is used in channels
 type Information interface {
 	msg() string
 }
 
-type SDJson struct {
+// SDMetadata stores JSON metadata from SD instances
+type SDMetadata struct {
 	Version     string `json:"sd_version"`
 	Fingerprint string `json:"gpg_fpr"`
 }
 
+// SDInfo stores metadata and Onion URL
 type SDInfo struct {
-	Info   SDJson
+	Info   SDMetadata
 	Url    string
 	Status bool
 }
@@ -44,8 +48,10 @@ func check(e error) {
 func checkStatus(ch chan Information, client *http.Client, url string) {
 	var result SDInfo
 	result.Url = url
+
+	metadataURL := fmt.Sprintf("http://%s/metadata", url)
 	// Create the request
-	req, err := http.NewRequest("GET", URL, nil)
+	req, err := http.NewRequest("GET", metadataURL, nil)
 	if err != nil {
 		result.Status = false
 		ch <- result
@@ -68,7 +74,7 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 		return
 	}
 
-	var info SDJson
+	var info SDMetadata
 	json.Unmarshal(body, &info)
 
 	result.Info = info
@@ -76,8 +82,9 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 }
 
 func main() {
+	i := 0
 	// create a SOCKS5 dialer
-	dialer, err := proxy.SOCKS5("tcp", PROXY_ADDR, nil, proxy.Direct)
+	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "can't connect to the proxy:", err)
 		os.Exit(1)
@@ -90,12 +97,28 @@ func main() {
 
 	ch := make(chan Information)
 
-	go checkStatus(ch, c, URL)
+	// Now let us find the onion addresses
+	data, err := ioutil.ReadFile("sdonion.txt")
+	check(err)
+	lines := strings.Split(string(data), "\n")
+
+	for _, v := range lines {
+		url := strings.TrimSpace(v)
+
+		if url != "" {
+			go checkStatus(ch, c, v)
+			i = i + 1
+		}
+
+	}
 
 	for {
 		result := <-ch
 		if result != nil {
 			fmt.Println(result.msg())
+			i = i - 1
+		}
+		if i == 0 {
 			break
 		}
 	}
