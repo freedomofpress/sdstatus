@@ -51,6 +51,8 @@ If you pass `--csv` flag to the tool, then it will print output in CSV format. F
 and then the journalist GPG key fingerprint. If only the Onion address is printed along with `,,`, it means those
 instances could not be reached (maybe they down).
 
-
+Remember that the CSV formatted output will be printed on the STDOUT as the network calls return the results, in an asynchronous manner.
+For the JSON output format, the tool waits for all of the network calls to return the results, and then prints them on the STDOUT at
+the end. 
 
 License: GPLv3+
