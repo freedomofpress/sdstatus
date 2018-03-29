@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/urfave/cli"
 	"golang.org/x/net/proxy"
 )
 
@@ -82,7 +83,7 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 	ch <- result
 }
 
-func main() {
+func runScan(csv bool) {
 	i := 0
 
 	results := make([]SDInfo, 0)
@@ -105,6 +106,7 @@ func main() {
 	check(err)
 	lines := strings.Split(string(data), "\n")
 
+	// For each address we are creating a goroutine
 	for _, v := range lines {
 		url := strings.TrimSpace(v)
 
@@ -115,11 +117,15 @@ func main() {
 
 	}
 
+	// Now wait for all the results
 	for {
 		result := <-ch
 		if result != nil {
 
-			//fmt.Println(result.msg())
+			if csv {
+				fmt.Println(result.msg())
+			}
+
 			results = append(results, result.(SDInfo))
 			i = i - 1
 		}
@@ -128,9 +134,43 @@ func main() {
 		}
 	}
 
-	bits, err := json.MarshalIndent(results, "", "\t")
-	if err == nil {
-		fmt.Println(string(bits))
+	if !csv {
+		bits, err := json.MarshalIndent(results, "", "\t")
+		if err == nil {
+			fmt.Println(string(bits))
+		}
 	}
 
+}
+
+func createApp() *cli.App {
+	app := cli.NewApp()
+	app.EnableBashCompletion = true
+	app.Name = "sdstatus"
+	app.Version = "0.1.0"
+	app.Usage = "To scan SecureDrop instances"
+	app.Flags = []cli.Flag{
+		cli.BoolFlag{
+			Name:  "csv",
+			Usage: "Prints output in CSV format",
+		},
+	}
+	app.Action = func(c *cli.Context) error {
+		csv := c.GlobalBool("csv")
+		if csv {
+			runScan(csv)
+		} else {
+			runScan(false)
+		}
+		return nil
+	}
+
+	return app
+}
+
+func main() {
+	app := createApp()
+	if err := app.Run(os.Args); err != nil {
+		check(err)
+	}
 }
