@@ -44,7 +44,13 @@ for you.
 ]
 ```
 
-Currently the tool prints JSON output on the STDOUT. It is a list of dictionaries telling if the site is available, and
+Currently by default the tool prints JSON output on the STDOUT. It is a list of dictionaries telling if the site is available, and
 the SecureDrop version and also the journalist GPG key fingerprint.
+
+If you pass `--csv` flag to the tool, then it will print output in CSV format. First the Onion address, then SecureDrop version,
+and then the journalist GPG key fingerprint. If only the Onion address is printed along with `,,`, it means those
+instances could not be reached (maybe they down).
+
+
 
 License: GPLv3+
