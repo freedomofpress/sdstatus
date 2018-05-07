@@ -83,7 +83,7 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 	ch <- result
 }
 
-func runScan(csv bool) {
+func runScan(csv bool, all bool) {
 	i := 0
 
 	results := make([]SDInfo, 0)
@@ -155,13 +155,16 @@ func createApp() *cli.App {
 			Usage: "Prints output in CSV format",
 		},
 	}
+	app.Flags = []cli.Flag{
+		cli.BoolFlag{
+			Name:  "all",
+			Usage: "Scans all known instances, via hardcoded list",
+		},
+	}
 	app.Action = func(c *cli.Context) error {
 		csv := c.GlobalBool("csv")
-		if csv {
-			runScan(csv)
-		} else {
-			runScan(false)
-		}
+		all := c.GlobalBool("all")
+		runScan(csv, all)
 		return nil
 	}
 
