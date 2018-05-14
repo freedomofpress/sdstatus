@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -168,6 +169,9 @@ func createApp() *cli.App {
 		csv := c.GlobalBool("csv")
 		all := c.GlobalBool("all")
 		onion_urls := c.Args()
+		if !all && len(onion_urls) == 0 {
+			log.Fatal("No args provided. Pass --all to use hardcoded list")
+		}
 		runScan(csv, all, onion_urls)
 		return nil
 	}
