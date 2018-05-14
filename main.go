@@ -83,7 +83,7 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 	ch <- result
 }
 
-func runScan(csv bool, all bool) {
+func runScan(csv bool, all bool, onion_urls []string) {
 	i := 0
 
 	results := make([]SDInfo, 0)
@@ -101,13 +101,16 @@ func runScan(csv bool, all bool) {
 
 	ch := make(chan Information)
 
-	// Now let us find the onion addresses
-	data, err := ioutil.ReadFile("sdonion.txt")
-	check(err)
-	lines := strings.Split(string(data), "\n")
+	// Prefer args passed on CLI, fall back to hardcoded list
+	if len(onion_urls) == 0 {
+		// Now let us find the onion addresses
+		data, err := ioutil.ReadFile("sdonion.txt")
+		check(err)
+		onion_urls = strings.Split(string(data), "\n")
+	}
 
 	// For each address we are creating a goroutine
-	for _, v := range lines {
+	for _, v := range onion_urls {
 		url := strings.TrimSpace(v)
 
 		if url != "" {
@@ -164,7 +167,8 @@ func createApp() *cli.App {
 	app.Action = func(c *cli.Context) error {
 		csv := c.GlobalBool("csv")
 		all := c.GlobalBool("all")
-		runScan(csv, all)
+		onion_urls := c.Args()
+		runScan(csv, all, onion_urls)
 		return nil
 	}
 
