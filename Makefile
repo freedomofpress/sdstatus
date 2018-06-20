@@ -5,10 +5,10 @@ build: ## Compiles Golang binary
 	go build
 
 .PHONY: test
-test: build ## Queries a random Onion URL from the hardcoded list
+test: ## Queries a random Onion URL from the hardcoded list
 	sort --random-sort sdonion.txt \
 		| head -n 1 \
-		| xargs ./sdstatus
+		| xargs go run main.go
 
 .PHONY: help
 help: ## Prints this message and exits.
