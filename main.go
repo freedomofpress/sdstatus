@@ -7,8 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"sync"
 
+	"github.com/k0kubun/pp"
 	"github.com/urfave/cli"
 	"golang.org/x/net/proxy"
 )
@@ -18,126 +19,117 @@ const (
 	proxyAddr = "127.0.0.1:9050"
 )
 
-// Information is used in channels
-type Information interface {
-	msg() string
-}
-
-// SDMetadata stores JSON metadata from SD instances
+// SDMetadata stores the information obtained from a given SecureDrop
+// instance's /metadata endpoint, a JSON API with platform info.
 type SDMetadata struct {
 	Version     string `json:"sd_version"`
+	Platform    string `json:"server_os"`
 	Fingerprint string `json:"gpg_fpr"`
+	V2SourceURL string `json:"v2_source_url"`
+	V3SourceURL string `json:"v3_source_url"`
 }
 
-// SDInfo stores metadata and Onion URL
-type SDInfo struct {
-	Info      SDMetadata
-	Url       string
-	Available bool
+// SDInstance stores metadata and Onion URL
+type SDInstance struct {
+	Metadata       SDMetadata
+	Url            string `json:"onion_address"`
+	Title          string `json:"title"`
+	Available      bool
+	DirectoryUrl   string `json:"directory_url"`
+	LandingPageUrl string `json:"landing_page_url"`
 }
 
-func (sd SDInfo) msg() string {
-	msgstr := fmt.Sprintf("%s,%s,%s", sd.Url, sd.Info.Version, sd.Info.Fingerprint)
-	return msgstr
-}
+func checkStatus(client *http.Client, sd SDInstance) SDInstance {
+	metadataURL := fmt.Sprintf("http://%s/metadata", sd.Url)
 
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
-
-func checkStatus(ch chan Information, client *http.Client, url string) {
-	var result SDInfo
-	result.Url = url
-
-	metadataURL := fmt.Sprintf("http://%s/metadata", url)
+	sd.Available = false
 	// Create the request
 	req, err := http.NewRequest("GET", metadataURL, nil)
 	if err != nil {
-		result.Available = false
-		ch <- result
-		return
+		return sd
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Available = false
-		ch <- result
-		return
+		return sd
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		result.Available = false
-		ch <- result
-		return
+		return sd
 	}
 
 	var info SDMetadata
-	json.Unmarshal(body, &info)
+	json_err := json.Unmarshal(body, &info)
+	if json_err != nil {
+		log.Fatal(json_err)
+	}
 
-	result.Info = info
-	result.Available = true
-	ch <- result
+	sd.Metadata = info
+	sd.Available = true
+	return sd
 }
 
-func runScan(format string, onion_urls []string) {
-	i := 0
+func getSecureDropDirectory() []SDInstance {
+	response, err := http.Get("https://securedrop.org/api/v1/directory/")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("%s", err))
+	}
+	defer response.Body.Close()
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("%s", err))
+	}
+	var directoryResults []SDInstance
+	json_err := json.Unmarshal(body, &directoryResults)
+	if json_err != nil {
+		log.Fatal(json_err)
+	}
+	return directoryResults
+}
 
-	results := make([]SDInfo, 0)
+func runScan(ch chan SDInstance, sdInstances []SDInstance, format string) {
+	var wg sync.WaitGroup
 	// create a SOCKS5 dialer
 	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "can't connect to the proxy:", err)
-		os.Exit(1)
+		log.Fatal("can't connect to the proxy:", err)
 	}
 	// setup the http client
 	httpTransport := &http.Transport{}
-	c := &http.Client{Transport: httpTransport}
+	client := &http.Client{Transport: httpTransport}
 	// Add the dialer
 	httpTransport.Dial = dialer.Dial
 
-	ch := make(chan Information)
-
 	// For each address we are creating a goroutine
-	for _, v := range onion_urls {
-		url := strings.TrimSpace(v)
-
-		if url != "" {
-			go checkStatus(ch, c, v)
-			i = i + 1
-		}
-
+	for _, i := range sdInstances {
+		wg.Add(1)
+		go func(i SDInstance) {
+			defer wg.Done()
+			r := checkStatus(client, i)
+			ch <- r
+		}(i)
 	}
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+}
 
-	// Now wait for all the results
-	for {
-		result := <-ch
-		if result != nil {
-
-			if format == "csv" {
-				fmt.Println(result.msg())
-			}
-
-			results = append(results, result.(SDInfo))
-			i = i - 1
-		}
-		if i == 0 {
-			break
-		}
-	}
-
-	if format == "json" {
-		bits, err := json.MarshalIndent(results, "", "\t")
-		if err == nil {
-			fmt.Println(string(bits))
-		}
+func displayInstance(sd SDInstance, format string) {
+	if format == "pp" {
+		pp.Print(sd)
 	} else if format == "csv" {
-	} else {
-		log.Fatal(fmt.Sprintf("Invalid format: %s", format))
+		s := fmt.Sprintf("%t,%s,%s,%s", sd.Available, sd.Metadata.Version, sd.Title, sd.Url)
+		fmt.Println(s)
+	} else if format == "json" {
+		sd_j, err := json.Marshal(sd)
+		if err != nil {
+			log.Println(err)
+		}
+		fmt.Printf("%s\n", sd_j)
 	}
 }
 
@@ -150,18 +142,25 @@ func createApp() *cli.App {
 	app.Usage = "To scan SecureDrop instances"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:  "format",
-			Usage: "Output scan results in `FORMAT`",
-			Value: "json",
+			Name:        "format",
+			Usage:       "Output scan results in `FORMAT`: json, pp, csv",
+			Value:       "csv",
 			Destination: &format,
 		},
 	}
 	app.Action = func(c *cli.Context) error {
-		onion_urls := c.Args()
-		if len(onion_urls) == 0 {
-			log.Fatal("No args provided.")
+		// onion_urls := c.Args()
+		// sd_instances := make([]SDInstance, 0)
+		sd_instances := getSecureDropDirectory()
+		ch := make(chan SDInstance)
+		runScan(ch, sd_instances, format)
+		for {
+			x, ok := <-ch
+			if ok == false {
+				break
+			}
+			displayInstance(x, format)
 		}
-		runScan(format, onion_urls)
 		return nil
 	}
 
@@ -171,6 +170,6 @@ func createApp() *cli.App {
 func main() {
 	app := createApp()
 	if err := app.Run(os.Args); err != nil {
-		check(err)
+		panic(err)
 	}
 }
