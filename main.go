@@ -149,9 +149,19 @@ func createApp() *cli.App {
 		},
 	}
 	app.Action = func(c *cli.Context) error {
-		// onion_urls := c.Args()
-		// sd_instances := make([]SDInstance, 0)
-		sd_instances := getSecureDropDirectory()
+		onion_urls := c.Args()
+		sd_instances := make([]SDInstance, 0)
+		// If no args on CLI, pull from directory
+		if len(onion_urls) < 1 {
+			sd_instances = getSecureDropDirectory()
+		} else {
+			for _, sd_url := range onion_urls {
+				sd_i := SDInstance{}
+				// TODO: Validate Onion URL
+				sd_i.Url = sd_url
+				sd_instances = append(sd_instances, sd_i)
+			}
+		}
 		ch := make(chan SDInstance)
 		runScan(ch, sd_instances, format)
 		for {
