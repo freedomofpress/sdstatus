@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -83,7 +84,7 @@ func checkStatus(ch chan Information, client *http.Client, url string) {
 	ch <- result
 }
 
-func runScan(csv bool) {
+func runScan(format string, onion_urls []string) {
 	i := 0
 
 	results := make([]SDInfo, 0)
@@ -101,13 +102,8 @@ func runScan(csv bool) {
 
 	ch := make(chan Information)
 
-	// Now let us find the onion addresses
-	data, err := ioutil.ReadFile("sdonion.txt")
-	check(err)
-	lines := strings.Split(string(data), "\n")
-
 	// For each address we are creating a goroutine
-	for _, v := range lines {
+	for _, v := range onion_urls {
 		url := strings.TrimSpace(v)
 
 		if url != "" {
@@ -122,7 +118,7 @@ func runScan(csv bool) {
 		result := <-ch
 		if result != nil {
 
-			if csv {
+			if format == "csv" {
 				fmt.Println(result.msg())
 			}
 
@@ -134,34 +130,38 @@ func runScan(csv bool) {
 		}
 	}
 
-	if !csv {
+	if format == "json" {
 		bits, err := json.MarshalIndent(results, "", "\t")
 		if err == nil {
 			fmt.Println(string(bits))
 		}
+	} else if format == "csv" {
+	} else {
+		log.Fatal(fmt.Sprintf("Invalid format: %s", format))
 	}
-
 }
 
 func createApp() *cli.App {
 	app := cli.NewApp()
+	var format string
 	app.EnableBashCompletion = true
 	app.Name = "sdstatus"
 	app.Version = "0.1.0"
 	app.Usage = "To scan SecureDrop instances"
 	app.Flags = []cli.Flag{
-		cli.BoolFlag{
-			Name:  "csv",
-			Usage: "Prints output in CSV format",
+		cli.StringFlag{
+			Name:  "format",
+			Usage: "Output scan results in `FORMAT`",
+			Value: "json",
+			Destination: &format,
 		},
 	}
 	app.Action = func(c *cli.Context) error {
-		csv := c.GlobalBool("csv")
-		if csv {
-			runScan(csv)
-		} else {
-			runScan(false)
+		onion_urls := c.Args()
+		if len(onion_urls) == 0 {
+			log.Fatal("No args provided.")
 		}
+		runScan(format, onion_urls)
 		return nil
 	}
 
