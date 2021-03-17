@@ -215,7 +215,7 @@ func scan(cmd *cli.Cmd) {
 			log.Printf("Reading SecureDrops to scan from %s", *inputFile)
 			sdd, err := readInputFile(*inputFile)
 			if err != nil {
-				log.Fatalf("Could not read Onion addresses from %s: %v", inputFile, err)
+				log.Fatalf("Could not read Onion addresses from %s: %v", *inputFile, err)
 			}
 			for _, sd := range sdd {
 				secureDrops[sd.OnionAddress] = sd
@@ -239,7 +239,7 @@ func scan(cmd *cli.Cmd) {
 			f, err := os.Create(*outputFile)
 			defer f.Close()
 			if err != nil {
-				log.Fatalf("Could not open output file %s: %s", outputFile, err)
+				log.Fatalf("Could not open output file %s: %s", *outputFile, err)
 			}
 			output = bufio.NewWriter(f)
 		}
