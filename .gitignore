@@ -1,1 +1,4 @@
 sdstatus
+*.csv
+*.json
+*.yml
