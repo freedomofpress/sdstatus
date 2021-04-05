@@ -1,0 +1,41 @@
+---
+common-steps:
+  - &installgolang
+    run:
+      name: Install golang dependencies
+      # buster-backports provides go 1.14, rather than 1.11
+      command: >
+        echo 'deb http://deb.debian.org/debian buster-backports main' > /etc/apt/sources.list.d/buster-backports.list &&
+        apt-get update &&
+        apt-get install -y sudo git make &&
+        apt-get install -y -t buster-backports golang &&
+        echo "GOPATH=$HOME/go" >> ~/.bashrc &&
+        echo "GOBIN=$HOME/go/bin" >> ~/.bashrc &&
+        source ~/.bashrc && mkdir -p "$GOBIN"
+
+version: 2
+jobs:
+  build:
+    docker:
+      - image: debian:stable
+    steps:
+      - *installgolang
+      - checkout
+      - setup-docker-engine
+      - run:
+          command: rm -f sdstatus
+      - run:
+          command: go fmt ; git diff --exit-code
+      - run:
+          command: go get
+      - run:
+          command: go vet
+      - run:
+          command: go build
+      - run:
+          command: ./sdstatus -h
+workflows:
+  version: 2
+  sdstatus_ci:
+    jobs:
+      - build

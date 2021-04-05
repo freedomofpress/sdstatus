@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"time"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -13,23 +13,23 @@ const (
 )
 
 type OrganizationLogo struct {
-	Height int `json:"height"`
-	Width int `json:"width"`
-	URL string `json:"url"`
+	Height int    `json:"height"`
+	Width  int    `json:"width"`
+	URL    string `json:"url"`
 }
 
 type SecureDrop struct {
-	Title string `json:"title" csv:"title"`
-	Slug string `json:"slug" csv:"slug"`
-	DirectoryURL string `json:"directory_url" csv:"directory_url"`
-	FirstPublishedAt time.Time `json:"first_published_at" csv:"first_published_at"`
-	LandingPageURL string `json:"landing_page_url" csv:"landing_page_url"`
-	OnionAddress string `json:"onion_address" csv:"onion_address"`
-	OrganizationLogo OrganizationLogo `json:"organization_logo" csv:"organization_logo"`
-	OrganizationDescription string `json:"organization_description" csv:"organization_description"`
-	Languages []string `json:"languages" csv:"languages"`
-	Topics []string `json:"topics" csv:"topics"`
-	Countries []string `json:"countries" csv:"countries"`
+	Title                   string           `json:"title" csv:"title"`
+	Slug                    string           `json:"slug" csv:"slug"`
+	DirectoryURL            string           `json:"directory_url" csv:"directory_url"`
+	FirstPublishedAt        time.Time        `json:"first_published_at" csv:"first_published_at"`
+	LandingPageURL          string           `json:"landing_page_url" csv:"landing_page_url"`
+	OnionAddress            string           `json:"onion_address" csv:"onion_address"`
+	OrganizationLogo        OrganizationLogo `json:"organization_logo" csv:"organization_logo"`
+	OrganizationDescription string           `json:"organization_description" csv:"organization_description"`
+	Languages               []string         `json:"languages" csv:"languages"`
+	Topics                  []string         `json:"topics" csv:"topics"`
+	Countries               []string         `json:"countries" csv:"countries"`
 }
 
 func GetDirectory(client *http.Client) (sd []SecureDrop, err error) {
