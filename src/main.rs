@@ -71,11 +71,19 @@ impl SDDirectoryInstance {
             }
         }
     }
+    pub fn from_onion(onion_url: &str) -> SDDirectoryInstance {
+        SDDirectoryInstance {
+            metadata: None,
+            onion_name: None,
+            title: "".to_owned(),
+            landing_page_url: "".to_owned(),
+            onion_address: onion_url.to_owned(),
+        }
+    }
 }
 
 /// Fetches the securedrop.org API route for info about all SecureDrops.
 async fn get_securedrop_directory() -> Result<Vec<SDDirectoryInstance>, Box<dyn Error>> {
-    info!("Fetching directory API at {}", DIRECTORY_URL);
     let response = reqwest::get(DIRECTORY_URL).await?;
     let instances: Vec<SDDirectoryInstance> = response.json().await?;
     Ok(instances)
@@ -101,9 +109,7 @@ async fn populate_metadata(
     }
     let mut counter: usize = 1;
     while let Some(i) = rx.recv().await {
-        debug!("Scanned instance {}/{}: {}", counter, l, i.title);
         results.push(i);
-        counter += 1;
         // TODO: The while loop on recv blocks forever, why?
         // We'll just break out manually if we've received all results, but
         // this is a hack.
@@ -111,6 +117,7 @@ async fn populate_metadata(
             debug!("Finished reading from channel, reporting results");
             break;
         }
+        counter += 1;
     }
     Ok(results)
 }
@@ -146,7 +153,7 @@ async fn generate_l10n_report(input_file: &str) -> Result<String, Box<dyn Error>
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let env = Env::default().filter_or("RUST_LOG", "debug,reqwest=info,hyper=info");
+    let env = Env::default().filter_or("RUST_LOG", "info,reqwest=info,hyper=info");
     env_logger::init_from_env(env);
 
     let matches = App::new("sdstatus")
@@ -169,6 +176,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         .default_value("json")
                         .long("format")
                         .short('f'),
+                )
+                .arg(
+                    Arg::new("onion_url")
+                        .about("Scan custom Onion URLs (skips directory)")
+                        .multiple(true),
                 ),
         )
         .subcommand(
@@ -184,8 +196,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Primary subcommand
     if let Some(ref matches) = matches.subcommand_matches("scan") {
-        // Get all SecureDrops from directory
-        let instances = get_securedrop_directory().await?;
+        let mut instances = Vec::<SDDirectoryInstance>::new();
+        if let Some(onions) = matches.values_of("onion_url") {
+            info!("Scanning custom Onion URLs, skipping directory lookup");
+            for o in onions {
+                let i = SDDirectoryInstance::from_onion(o);
+                instances.push(i);
+            }
+        } else {
+            // TODO: Custom onions should be appended to, and by default
+            // directory entries are included (unless --directory=false)
+            info!("Fetching directory API at {}", DIRECTORY_URL);
+            instances = get_securedrop_directory().await?;
+        }
         let format = matches.value_of("format").unwrap();
         let full_instances = populate_metadata(instances).await?;
         if format == "json" {
