@@ -6,6 +6,7 @@ use std::error::Error;
 //use std::sync::mpsc::channel;
 use tokio::sync::mpsc::channel;
 
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use custom_error::custom_error;
@@ -27,6 +28,7 @@ struct SDMetadata {
     gpg_fpr: String,
     v2_source_url: Option<String>,
     v3_source_url: String,
+    supported_languages: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -113,6 +115,35 @@ async fn populate_metadata(
     Ok(results)
 }
 
+/// Reads in a file containing JSON results from a previous scan,
+/// and inspects the metadata for languages to generate a report.
+async fn generate_l10n_report(input_file: &str) -> Result<String, Box<dyn Error>> {
+    let j = std::fs::read_to_string(input_file)?;
+    let instances: Vec<SDDirectoryInstance> = serde_json::from_str(&j)?;
+    let mut locales: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for i in instances {
+        // Metadata won't exist for down instances, so check first.
+        if let Some(m) = i.metadata {
+            for l in m.supported_languages {
+                locales
+                    .entry(l)
+                    .or_insert_with(Vec::new)
+                    .push(i.title.to_owned());
+            }
+        }
+    }
+    let mut report = String::from("");
+    for (locale, sites) in locales {
+        report += &format!(
+            "{} ({}):\n  {}\n\n",
+            &locale,
+            &sites.len(),
+            sites.join("\n  ")
+        );
+    }
+    Ok(report)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let env = Env::default().filter_or("RUST_LOG", "debug,reqwest=info,hyper=info");
@@ -128,6 +159,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     Arg::new("directory")
                         .about("Read sites to scan from the securedrop.org directory")
                         .default_value("true")
+                        .takes_value(false)
                         .long("directory")
                         .short('d'),
                 )
@@ -139,13 +171,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         .short('f'),
                 ),
         )
+        .subcommand(
+            App::new("l10n")
+                .about("Reports localization metrics from scanned metadata")
+                .arg(
+                    Arg::new("input_file")
+                        .about("The JSON output of a previous 'scan'")
+                        .required(true),
+                ),
+        )
         .get_matches();
-
-    // Get all SecureDrops from directory
-    let instances = get_securedrop_directory().await?;
 
     // Primary subcommand
     if let Some(ref matches) = matches.subcommand_matches("scan") {
+        // Get all SecureDrops from directory
+        let instances = get_securedrop_directory().await?;
         let format = matches.value_of("format").unwrap();
         let full_instances = populate_metadata(instances).await?;
         if format == "json" {
@@ -159,7 +199,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         } else {
             error!("Output format {} is unimplemented", format);
         }
+    } else if let Some(ref matches) = matches.subcommand_matches("l10n") {
+        let input_file = matches.value_of("input_file").unwrap();
+        info!(
+            "Generating localization report from scan results at: {}",
+            input_file
+        );
+        match generate_l10n_report(input_file).await {
+            Ok(r) => println!("{}", r),
+            Err(e) => {
+                error!("Failed to generated report, {}", e);
+            }
+        }
     }
-
     Ok(())
 }
