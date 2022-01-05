@@ -2,3 +2,8 @@ sdstatus
 *.csv
 *.json
 *.yml
+
+
+# Added by cargo
+
+/target
