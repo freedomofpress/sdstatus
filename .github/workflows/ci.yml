@@ -1,0 +1,14 @@
+---
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: rust:buster
+    steps:
+      - uses: actions/checkout@v3
+      - run: rm -f target/
+      - run: cargo build
+      - run: ./target/debug/sdstatus -h
