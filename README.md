@@ -8,10 +8,6 @@ The list of sites to check can be supplied on the command line.
 By default, the script will use the SecureDrop directory API endpoint
 at securedrop.org.
 
-## System requirements
-
-You must have Tor running with a SOCKS proxy at port 9050 in the system.
-
 ## How to build?
 
 - `cargo build`
